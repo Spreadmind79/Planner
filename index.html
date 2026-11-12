@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generatore Piano Maratona</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header / Dashboard Top -->
+    <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-500 text-slate-950 p-2.5 rounded-xl font-bold text-xl shadow-lg shadow-amber-500/20">
+                    🏃‍♂️
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-white">Marathon Training Planner</h1>
+                    <p class="text-xs text-slate-400">Ricalcolo automatico calendario in base alla data evento</p>
+                </div>
+            </div>
+
+            <!-- Date Picker & Controls -->
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="flex items-center space-x-2 bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-700">
+                    <label for="marathonDate" class="text-xs font-semibold text-amber-400 uppercase tracking-wider">Data Maratona:</label>
+                    <input type="date" id="marathonDate" value="2027-03-14" class="bg-slate-800 text-white text-sm font-medium px-2 py-1 rounded-lg border border-slate-600 focus:outline-none focus:border-amber-500">
+                </div>
+                <button onclick="resetDefaultDate()" class="bg-slate-700 hover:bg-slate-600 text-xs font-semibold px-3 py-2.5 rounded-xl transition-all border border-slate-600">
+                    Reset 14 Mar
+                </button>
+                <button onclick="copyScheduleText()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center space-x-1.5">
+                    <span>📋 Copia Testo</span>
+                </button>
+                <button onclick="exportTxtFile()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-emerald-600/20 flex items-center space-x-1.5">
+                    <span>💾 Esporta .txt</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-8 flex-grow w-full">
+
+        <!-- Stats Bar -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-2xl shadow-sm">
+                <div class="text-xs font-medium text-slate-400 uppercase">Allenamenti Totali</div>
+                <div class="text-2xl font-bold text-white mt-1" id="statTotalWorkouts">0</div>
+            </div>
+            <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-2xl shadow-sm">
+                <div class="text-xs font-medium text-slate-400 uppercase">Settimane di Preparazione</div>
+                <div class="text-2xl font-bold text-amber-400 mt-1" id="statTotalWeeks">0</div>
+            </div>
+            <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-2xl shadow-sm">
+                <div class="text-xs font-medium text-slate-400 uppercase">Data Evento Attuale</div>
+                <div class="text-lg font-semibold text-white mt-1 truncate" id="statEventDateStr">14/03/2027</div>
+            </div>
+            <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-2xl shadow-sm">
+                <div class="text-xs font-medium text-slate-400 uppercase">Stato Programma</div>
+                <div class="text-lg font-semibold text-emerald-400 mt-1 flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> Attivo
+                </div>
+            </div>
+        </div>
+
+        <!-- Sezione Parametri di Soglia (FC & Ritmo) -->
+        <div class="bg-slate-800/90 border border-slate-700 p-5 rounded-2xl mb-6 shadow-sm">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center pb-3 mb-4 border-b border-slate-700 gap-3">
+                <div>
+                    <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">Parametri di Soglia Lattacida</h2>
+                    <p class="text-xs text-slate-400">Modifica FC Soglia e Ritmo di Soglia per aggiornare in tempo reale le zone cardiache e di passo</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center space-x-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-700">
+                        <label for="thresholdInput" class="text-xs font-semibold text-slate-300">FC Soglia (bpm):</label>
+                        <input type="number" id="thresholdInput" value="170" min="120" max="210" oninput="updateZonesFromThreshold()" class="w-16 bg-slate-800 text-amber-400 font-bold text-sm px-2 py-1 rounded-lg border border-slate-600 focus:outline-none focus:border-amber-500 text-center">
+                    </div>
+                    <div class="flex items-center space-x-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-700">
+                        <label for="paceThresholdInput" class="text-xs font-semibold text-slate-300">Ritmo Soglia (mm:ss):</label>
+                        <input type="text" id="paceThresholdInput" value="4:15" placeholder="4:15" oninput="updateZonesFromThreshold()" class="w-16 bg-slate-800 text-amber-400 font-bold text-sm px-2 py-1 rounded-lg border border-slate-600 focus:outline-none focus:border-amber-500 text-center">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <!-- Z1 -->
+                <div class="bg-slate-900/60 border border-slate-700/50 p-3.5 rounded-xl">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="w-3.5 h-3.5 rounded-full bg-slate-500 shrink-0"></span>
+                        <span class="text-xs font-bold text-white">Z1 - Recupero</span>
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div>Cardio: <span id="z1Hr" class="font-semibold text-slate-100">&lt; 119 bpm</span></div>
+                        <div>Ritmo: <span id="z1Pace" class="font-semibold text-slate-100">&gt; 5:30 /km</span></div>
+                    </div>
+                </div>
+                <!-- Z2 -->
+                <div class="bg-slate-900/60 border border-slate-700/50 p-3.5 rounded-xl">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="w-3.5 h-3.5 rounded-full bg-blue-500 shrink-0"></span>
+                        <span class="text-xs font-bold text-white">Z2 - Lento / Fondo</span>
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div>Cardio: <span id="z2Hr" class="font-semibold text-blue-400">119 - 144 bpm</span></div>
+                        <div>Ritmo: <span id="z2Pace" class="font-semibold text-blue-400">4:50 - 5:30 /km</span></div>
+                    </div>
+                </div>
+                <!-- Z3 -->
+                <div class="bg-slate-900/60 border border-slate-700/50 p-3.5 rounded-xl">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 shrink-0"></span>
+                        <span class="text-xs font-bold text-white">Z3 - Aerobico / Medio</span>
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div>Cardio: <span id="z3Hr" class="font-semibold text-emerald-400">145 - 163 bpm</span></div>
+                        <div>Ritmo: <span id="z3Pace" class="font-semibold text-emerald-400">4:20 - 4:50 /km</span></div>
+                    </div>
+                </div>
+                <!-- Z4 -->
+                <div class="bg-slate-900/60 border border-slate-700/50 p-3.5 rounded-xl">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="w-3.5 h-3.5 rounded-full bg-amber-500 shrink-0"></span>
+                        <span class="text-xs font-bold text-white">Z4 - Soglia</span>
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div>Cardio: <span id="z4Hr" class="font-semibold text-amber-400">164 - 178 bpm</span></div>
+                        <div>Ritmo: <span id="z4Pace" class="font-semibold text-amber-400">4:10 - 4:20 /km</span></div>
+                    </div>
+                </div>
+                <!-- Z5 -->
+                <div class="bg-slate-900/60 border border-slate-700/50 p-3.5 rounded-xl col-span-1 sm:col-span-2 lg:col-span-1">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="w-3.5 h-3.5 rounded-full bg-rose-500 shrink-0"></span>
+                        <span class="text-xs font-bold text-white">Z5 - VO2Max / Massima</span>
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div>Cardio: <span id="z5Hr" class="font-semibold text-rose-400">&gt; 179 bpm</span></div>
+                        <div>Ritmo: <span id="z5Pace" class="font-semibold text-rose-400">&lt; 4:10 /km</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sezione Volume Chilometrico Settimanale in Linea -->
+        <div class="bg-slate-800/90 border border-slate-700 p-5 rounded-2xl mb-6 shadow-sm">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 mb-4 border-b border-slate-700 gap-2">
+                <div>
+                    <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider">Volume Chilometrico e Ripartizione per Settimana</h2>
+                    <p class="text-xs text-slate-400">Panoramica tabellare e in linea dei chilometri e delle zone d'intensità per ogni settimana</p>
+                </div>
+                <!-- Legenda Colori -->
+                <div class="flex flex-wrap items-center gap-3 text-xs">
+                    <div class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded bg-slate-500"></span><span class="text-slate-300">Z1</span></div>
+                    <div class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded bg-blue-500"></span><span class="text-slate-300">Z2</span></div>
+                    <div class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded bg-emerald-500"></span><span class="text-slate-300">Z3</span></div>
+                    <div class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded bg-amber-500"></span><span class="text-slate-300">Z4</span></div>
+                    <div class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded bg-rose-500"></span><span class="text-slate-300">Z5</span></div>
+                </div>
+            </div>
+
+            <!-- Lista delle righe settimanali dei volumi -->
+            <div id="volumeRowsContainer" class="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                <!-- Popolato via JS -->
+            </div>
+        </div>
+
+        <!-- Intensity Zones Legend Bar -->
+        <div class="bg-slate-800/90 border border-slate-700 p-4 rounded-2xl mb-8 shadow-sm">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Legenda Colori Intensità</div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div class="flex items-center space-x-2 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-700/50">
+                    <span class="w-3.5 h-3.5 rounded-full bg-slate-500 shrink-0"></span>
+                    <div class="text-xs"><span class="font-bold text-white">Z1</span> <span class="text-slate-400">Grigio (Recupero)</span></div>
+                </div>
+                <div class="flex items-center space-x-2 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-700/50">
+                    <span class="w-3.5 h-3.5 rounded-full bg-blue-500 shrink-0"></span>
+                    <div class="text-xs"><span class="font-bold text-white">Z2</span> <span class="text-slate-400">Blu (Lento/Facile)</span></div>
+                </div>
+                <div class="flex items-center space-x-2 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-700/50">
+                    <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 shrink-0"></span>
+                    <div class="text-xs"><span class="font-bold text-white">Z3</span> <span class="text-slate-400">Verde (Aerobico/Medio)</span></div>
+                </div>
+                <div class="flex items-center space-x-2 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-700/50">
+                    <span class="w-3.5 h-3.5 rounded-full bg-amber-500 shrink-0"></span>
+                    <div class="text-xs"><span class="font-bold text-white">Z4</span> <span class="text-slate-400">Arancio (Soglia)</span></div>
+                </div>
+                <div class="flex items-center space-x-2 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-700/50 col-span-2 sm:col-span-1">
+                    <span class="w-3.5 h-3.5 rounded-full bg-rose-500 shrink-0"></span>
+                    <div class="text-xs"><span class="font-bold text-white">Z5</span> <span class="text-slate-400">Rosso (Massima)</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="flex items-center space-x-2 overflow-x-auto pb-4 mb-6 no-scrollbar">
+            <button onclick="filterCategory('Tutti')" class="cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20" data-category="Tutti">Tutti</button>
+            <button onclick="filterCategory('Lungo')" class="cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700" data-category="Lungo">Lungo</button>
+            <button onclick="filterCategory('Medio Variato')" class="cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700" data-category="Medio Variato">Medio Variato</button>
+            <button onclick="filterCategory('Ripetute')" class="cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700" data-category="Ripetute">Ripetute</button>
+            <button onclick="filterCategory('Easy')" class="cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700" data-category="Easy">Easy</button>
+            <button onclick="filterCategory('Recupero')" class="cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700" data-category="Recupero">Recupero</button>
+            <button onclick="filterCategory('Maratona')" class="cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700" data-category="Maratona">Maratona</button>
+        </div>
+
+        <!-- Schedule Container -->
+        <div id="scheduleContainer" class="space-y-6">
+            <!-- Dynamically populated via JS -->
+        </div>
+
+    </main>
+
+    <!-- MODALE / POPUP TECNICA -->
+    <div id="techModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative transform scale-95 transition-transform duration-300" id="techModalBox">
+            <button onclick="closeModal('techModal', 'techModalBox')" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-900/60 p-2 rounded-xl border border-slate-700 transition-all">
+                ✕
+            </button>
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="bg-blue-500/20 text-blue-400 p-2.5 rounded-xl border border-blue-500/30 font-bold">🎯</div>
+                <div>
+                    <h3 class="text-base font-bold text-white">Focus Tecnico & Drills</h3>
+                    <p class="text-xs text-slate-400">Esercizi di biomeccanica e coordinazione</p>
+                </div>
+            </div>
+            <div class="text-xs text-slate-300 space-y-3 leading-relaxed bg-slate-900/60 p-4 rounded-xl border border-slate-700/50">
+                <div class="border-b border-slate-700/60 pb-2">
+                    <strong class="text-blue-400 block mb-0.5">1. Skip basso (A-Skip basso)</strong>
+                    <p class="text-slate-300">Cadenza rapida e appoggio sotto il bacino</p>
+                    <span class="text-amber-400 font-semibold text-[11px]">3 × 20m (recupero al passo)</span>
+                </div>
+                <div class="border-b border-slate-700/60 pb-2">
+                    <strong class="text-blue-400 block mb-0.5">2. Calciata dietro sotto il gluteo</strong>
+                    <p class="text-slate-300">Chiusura rapida del ginocchio e attivazione femorali</p>
+                    <span class="text-amber-400 font-semibold text-[11px]">3 × 20m (recupero al passo)</span>
+                </div>
+                <div class="border-b border-slate-700/60 pb-2">
+                    <strong class="text-blue-400 block mb-0.5">3. Rimbalzi elastici (Pogo Jumps)</strong>
+                    <p class="text-slate-300">Elasticità del tendine d'Achille e caviglia rigida</p>
+                    <span class="text-amber-400 font-semibold text-[11px]">3 × 15m (recupero al passo)</span>
+                </div>
+                <div>
+                    <strong class="text-blue-400 block mb-0.5">4. Corsa "a ruota" (B-Skip semplificato)</strong>
+                    <p class="text-slate-300">Attacco attivo al suolo senza frenata (pawback)</p>
+                    <span class="text-amber-400 font-semibold text-[11px]">3 × 20m (recupero al passo)</span>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeModal('techModal', 'techModalBox')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-600/20">
+                    Chiudi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE / POPUP FORZA & POTENZA -->
+    <div id="infoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative transform scale-95 transition-transform duration-300" id="modalContentBox">
+            <button onclick="closeModal('infoModal', 'modalContentBox')" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-900/60 p-2 rounded-xl border border-slate-700 transition-all">
+                ✕
+            </button>
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="bg-amber-500/20 text-amber-400 p-2.5 rounded-xl border border-amber-500/30 font-bold">🏋️</div>
+                <div>
+                    <h3 class="text-base font-bold text-white">Protocollo Forza & Potenza (Contrasto Neuromuscolare)</h3>
+                    <p class="text-xs text-slate-400">Guida e abbinamenti biomeccanici per la sessione</p>
+                </div>
+            </div>
+            <div class="text-xs text-slate-300 space-y-3 leading-relaxed bg-slate-900/60 p-4 rounded-xl border border-slate-700/50">
+                <p>Nell'atletica si usa spesso abbinare direttamente un esercizio di forza massima a un gesto esplosivo simile sul piano biomeccanico, per "insegnare" subito al sistema nervoso a usare la forza appena reclutata.</p>
+                <div class="border-t border-slate-700/60 pt-2 space-y-2">
+                    <p><strong class="text-amber-400">• Coppia A (Spinta verticale):</strong> Eseguire 3 ripetizioni di Mezzo Squat all'85%, recuperare 2 minuti, ed eseguire subito 4–5 jump squat a corpo libero o salti su box (Box Jump) alla massima altezza. Riposare 3 minuti prima di ripetere il blocco (per 3–4 volte).</p>
+                    <p><strong class="text-amber-400">• Coppia B (Spinta orizzontale):</strong> Eseguire 3 ripetizioni di Stacco con Trap Bar all'85%, recuperare 2 minuti, ed eseguire 3 balzi orizzontali consecutivi (Standing Triple Jump) oppure uno sprint sui 20 metri. Riposare 3 minuti e ripetere per 3 volte.</p>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeModal('infoModal', 'modalContentBox')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-amber-500/20">
+                    Ho capito, chiudi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 flex items-center space-x-2 z-50">
+        <span id="toastIcon">✅</span>
+        <span id="toastMessage" class="text-sm font-medium">Testo copiato negli appunti!</span>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 border-t border-slate-700 mt-12 py-6 text-center text-xs text-slate-400">
+        <p>Marathon Training Planner &bull; Ottimizzato per runner e preparatori atletici</p>
+    </footer>
+
+    <script>
+        const workoutsData = [
+            { date: "2026-11-15", text: "10km COLLINARI Z2 + 10 allunghi", category: "Lungo" },
+            { date: "2026-11-17", text: "40' con allungo 30'' ogni 5' + 10 allunghi", category: "Easy", hasTechInfo: true },
+            { date: "2026-11-19", text: "20' + 1' forte 1' piano per 20' + 5' defa", category: "Ripetute", hasStrengthInfo: true },
+            { date: "2026-11-22", text: "12km COLLINARI Z2 + 10 allunghi", category: "Lungo" },
+            { date: "2026-11-24", text: "45' con allungo 30'' ogni 5' + 10 allunghi", category: "Easy", hasTechInfo: true },
+            { date: "2026-11-26", text: "20' + 1'30'' forte 1' piano per 20' + 5' defa", category: "Ripetute", hasStrengthInfo: true },
+            { date: "2026-11-29", text: "14km COLLINARI Z2 + 10 allunghi", category: "Lungo" },
+            { date: "2026-12-01", text: "50' con allungo 30'' ogni 5' + 10 allunghi", category: "Easy", hasTechInfo: true },
+            { date: "2026-12-03", text: "20' + 2' forte 1' piano per 20' + 5' defa", category: "Ripetute", hasStrengthInfo: true },
+            { date: "2026-12-06", text: "16km COLLINARI Z2 + 10 allunghi", category: "Lungo" },
+            { date: "2026-12-08", text: "40' con allungo 30'' ogni 5' + 10 allunghi", category: "Easy", hasTechInfo: true },
+            { date: "2026-12-10", text: "20' + 1' forte 1' piano per 20' + 5' defa", category: "Ripetute", hasStrengthInfo: true },
+            { date: "2026-12-13", text: "8km COLLINARI Z2 + 10 allunghi", category: "Lungo" },
+            { date: "2026-12-15", text: "55'' con allungo 30'' ogni 5' + 10 allunghi", category: "Easy", hasTechInfo: true },
+            { date: "2026-12-17", text: "20' + 2'30'' forte 1' piano per 20' + 5' defa", category: "Ripetute", hasStrengthInfo: true },
+            { date: "2026-12-20", text: "18km COLLINARI Z2 + 10 allunghi", category: "Lungo" },
+            { date: "2026-12-22", text: "1h con allungo 30'' ogni 5' + 10 allunghi", category: "Easy", hasTechInfo: true },
+            { date: "2026-12-24", text: "20' + 3'' forte 1' piano per 20' + 5' defa", category: "Ripetute", hasStrengthInfo: true },
+            { date: "2026-12-27", text: "20km", category: "Lungo" },
+            { date: "2026-12-29", text: "20' + 3km Z3 + rec 2' + 10x100 veloci rec 30'' + rec 2' 3km Z2", category: "Ripetute" },
+            { date: "2026-12-31", text: "1h05' con allungo 30'' ogni 5' sul finale salita 10' + 10 allunghi", category: "Ripetute", hasTechInfo: true },
+            { date: "2027-01-03", text: "25km prova una mini progressione sul finale", category: "Lungo" },
+            { date: "2027-01-05", text: "20' + corsa in progressione 30' fino a Z3 + 10' defa + 10 allunghi", category: "Easy", hasStrengthInfo: true },
+            { date: "2027-01-07", text: "1h10' con allungo 30'' ogni 5' sul finale salita per 15' + 10 allunghi", category: "Ripetute" },
+            { date: "2027-01-10", text: "MEDIO VARIATO 10 = 20' risc + 6 allunghi + 3km Z3 + 2km Z2 + 2km Z3 + 2Km Z2 + 1km Z4", category: "Medio Variato" },
+            { date: "2027-01-12", text: "20' + rec 2' 10x100 rec 30'' + 20' + rec 2' 10x100 rec 30''", category: "Ripetute", hasTechInfo: true },
+            { date: "2027-01-14", text: "1h con allungo 30'' ogni 5' ultimi 20' collinare + 10 allunghi", category: "Easy", hasStrengthInfo: true },
+            { date: "2027-01-17", text: "27km 10km Z2 + 3km Z3 + 10km Z2 + 3km Z3 + 1km Z2", category: "Lungo" },
+            { date: "2027-01-19", text: "20' + 6x100 rec 30'' + 5x200 rec 1' + 10'", category: "Ripetute", hasTechInfo: true },
+            { date: "2027-01-21", text: "50' con allungo 30'' ogni 5' ultimi 10' collinare + 10 allunghi", category: "Easy", hasStrengthInfo: true },
+            { date: "2027-01-24", text: "MEDIO VARIATO 12 = 20' risc + 6 allunghi + (3km Z3 + 2km Z2) + 2km in progressione", category: "Medio Variato" },
+            { date: "2027-01-26", text: "20' + 6 allunghi + 2x(5x100 rec 30'' + 2x200 rec 1') + 10'", category: "Ripetute", hasTechInfo: true },
+            { date: "2027-01-28", text: "1h con allungo 30'' ogni 5' + 10 allunghi", category: "Easy", hasStrengthInfo: true },
+            { date: "2027-01-31", text: "30km 10km Z2 + 5km Z3 + 10km Z2 + 5km Z3 + 6 allunghi per ripristinare la lunghezza dei tendini", category: "Lungo" },
+            { date: "2027-02-02", text: "20' + 2x(10x100) rec 30'' rec 2' tra le serie + 20'", category: "Ripetute" },
+            { date: "2027-02-04", text: "50' con allungo 30'' ogni 5' + 10 allunghi", category: "Easy" },
+            { date: "2027-02-07", text: "MEDIO VARIATO 14 = 20' risc + 6 allunghi + 2x(3km Z2 + 3km Z3 + 1km Z4)", category: "Medio Variato" },
+            { date: "2027-02-09", text: "20' + 6 allunghi + 2x(4x100 rec 30'' + 4x200 rec 1') + 10'", category: "Ripetute" },
+            { date: "2027-02-11", text: "50' con allungo 30'' ogni 5' + 10 allunghi", category: "Easy" },
+            { date: "2027-02-14", text: "36km 10km Z2 + 6km Z3 + 10km Z2 + 9km Z3 + 6 allunghi per ripristinare la lunghezza dei tendini", category: "Lungo" },
+            { date: "2027-02-18", text: "40' easy + 6 allunghi", category: "Easy" },
+            { date: "2027-02-20", text: "20' easy + 6 allunghi + 8x100m salita rec scendendo + 2km defa", category: "Ripetute" },
+            { date: "2027-02-21", text: "MEDIO VARIATO 8 = 20' risc + 6 allunghi + 4x(1km Z2 + 1km Z3)", category: "Medio Variato" },
+            { date: "2027-02-23", text: "20' + 2x(10x100) rec 30'' rec 2' tra le serie + 20'", category: "Ripetute" },
+            { date: "2027-02-25", text: "50' con allungo 30'' ogni 5' + 10 allunghi", category: "Easy" },
+            { date: "2027-02-28", text: "30km 10km Z2 + 2x(7km Z3 + 3km Z2) + 6 allunghi per ripristinare la lunghezza dei tendini", category: "Lungo" },
+            { date: "2027-03-02", text: "50' Z2 con allungo 30'' ogni 5' + 10 allunghi", category: "Easy" },
+            { date: "2027-03-04", text: "30' + 6 allunghi + 8x100m salita rec scendendo + 20' Z2", category: "Ripetute" },
+            { date: "2027-03-07", text: "20km = 5km Z2 Avvio + 15km ritmo gara Z3 bassa + 6 allunghi", category: "Lungo" },
+            { date: "2027-03-09", text: "40' Z2 + 10 allunghi", category: "Easy" },
+            { date: "2027-03-11", text: "20' risc + 6 allunghi + 3 x 1000 Z3 alto in progressione rec 3' fermo", category: "Ripetute" },
+            { date: "2027-03-14", text: "MARATONA", category: "Maratona" }
+        ];
+
+        let currentFilter = 'Tutti';
+
+        const categoryColors = {
+            'Lungo': 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+            'Medio Variato': 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+            'Ripetute': 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+            'Easy': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+            'Recupero': 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+            'Maratona': 'bg-yellow-400 text-slate-950 font-bold border-yellow-500'
+        };
+
+        function openModal(modalId, boxId) {
+            const modal = document.getElementById(modalId);
+            const box = document.getElementById(boxId);
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                box.classList.remove('scale-95');
+                box.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal(modalId, boxId) {
+            const modal = document.getElementById(modalId);
+            const box = document.getElementById(boxId);
+            modal.classList.add('opacity-0');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function parsePaceToSeconds(paceStr) {
+            const parts = paceStr.split(':');
+            if (parts.length !== 2) return 255;
+            const mins = parseInt(parts[0]) || 4;
+            const secs = parseInt(parts[1]) || 0;
+            return mins * 60 + secs;
+        }
+
+        function formatSecondsToPace(totalSecs) {
+            const mins = Math.floor(totalSecs / 60);
+            const secs = Math.round(totalSecs % 60);
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        function updateZonesFromThreshold() {
+            const thr = parseInt(document.getElementById('thresholdInput').value) || 170;
+            const paceStr = document.getElementById('paceThresholdInput').value.trim();
+            const thresholdSecs = parsePaceToSeconds(paceStr);
+            
+            const z1Max = Math.round(thr * 0.70);
+            const z2Min = z1Max + 1;
+            const z2Max = Math.round(thr * 0.85);
+            const z3Min = z2Max + 1;
+            const z3Max = Math.round(thr * 0.96);
+            const z4Min = z3Max + 1;
+            const z4Max = Math.round(thr * 1.05);
+            const z5Min = z4Max + 1;
+
+            document.getElementById('z1Hr').innerText = `< ${z1Max} bpm`;
+            document.getElementById('z2Hr').innerText = `${z2Min} - ${z2Max} bpm`;
+            document.getElementById('z3Hr').innerText =`${z3Min} - ${z3Max} bpm`;
+            document.getElementById('z4Hr').innerText = `${z4Min} - ${z4Max} bpm`;
+            document.getElementById('z5Hr').innerText = `> ${z5Min} bpm`;
+
+            const z4MinSec = thresholdSecs - 5;
+            const z4MaxSec = thresholdSecs + 5;
+            const z3MinSec = z4MaxSec + 2;
+            const z3MaxSec = z3MinSec + 20;
+            const z2MinSec = z3MaxSec + 2;
+            const z2MaxSec = z2MinSec + 35;
+            const z1MinSec = z2MaxSec + 5;
+            const z5MaxSec = z4MinSec - 5;
+
+            document.getElementById('z1Pace').innerText = `> ${formatSecondsToPace(z1MinSec)} /km`;
+            document.getElementById('z2Pace').innerText = `${formatSecondsToPace(z2MinSec)} - ${formatSecondsToPace(z2MaxSec)} /km`;
+            document.getElementById('z3Pace').innerText = `${formatSecondsToPace(z3MinSec)} - ${formatSecondsToPace(z3MaxSec)} /km`;
+            document.getElementById('z4Pace').innerText = `${formatSecondsToPace(z4MinSec)} - ${formatSecondsToPace(z4MaxSec)} /km`;
+            document.getElementById('z5Pace').innerText = `< ${formatSecondsToPace(z5MaxSec)} /km`;
+        }
+
+        function getZoneBadges(text) {
+            const zones = [];
+            if (/Z1/i.test(text)) zones.push({ name: 'Z1', class: 'bg-slate-500/20 text-slate-300 border-slate-500/40' });
+            if (/Z2/i.test(text)) zones.push({ name: 'Z2', class: 'bg-blue-500/20 text-blue-300 border-blue-500/40' });
+            if (/Z3/i.test(text)) zones.push({ name: 'Z3', class: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' });
+            if (/Z4/i.test(text)) zones.push({ name: 'Z4', class: 'bg-amber-500/20 text-amber-300 border-amber-500/40' });
+            if (/Z5/i.test(text)) zones.push({ name: 'Z5', class: 'bg-rose-500/20 text-rose-300 border-rose-500/40' });
+            return zones;
+        }
+
+        function estimateWorkoutVolume(text, category) {
+            let kmZ1 = 0, kmZ2 = 0, kmZ3 = 0, kmZ4 = 0, kmZ5 = 0;
+            const lower = text.toLowerCase();
+
+            const kmMatches = text.match(/(\d+)\s*km/gi);
+            let explicitKm = 0;
+            if (kmMatches) {
+                kmMatches.forEach(m => {
+                    const num = parseInt(m);
+                    if (!isNaN(num)) explicitKm += num;
+                });
+            }
+
+            if (category === 'Lungo') {
+                if (explicitKm > 0) {
+                    if (lower.includes('z3')) {
+                        kmZ3 += 3;
+                        kmZ2 += Math.max(0, explicitKm - 3);
+                    } else if (lower.includes('z2')) {
+                        kmZ2 += explicitKm;
+                    } else {
+                        kmZ2 += explicitKm * 0.8;
+                        kmZ3 += explicitKm * 0.2;
+                    }
+                } else {
+                    kmZ2 += 16;
+                }
+            } else if (category === 'Easy') {
+                kmZ2 += lower.includes('1h') ? 11 : 8;
+                if (lower.includes('allunghi')) kmZ5 += 0.8;
+            } else if (category === 'Ripetute' || category === 'Medio Variato') {
+                if (explicitKm > 0) {
+                    kmZ2 += explicitKm * 0.5;
+                    kmZ3 += explicitKm * 0.3;
+                    kmZ4 += explicitKm * 0.2;
+                } else {
+                    kmZ2 += 6;
+                    kmZ3 += 3;
+                    kmZ4 += 2;
+                }
+            } else if (category === 'Maratona') {
+                kmZ3 += 42.2;
+            } else if (category === 'Recupero') {
+                // Riposo
+            } else {
+                kmZ2 += 8;
+            }
+
+            const total = kmZ1 + kmZ2 + kmZ3 + kmZ4 + kmZ5;
+            return { z1: kmZ1, z2: kmZ2, z3: kmZ3, z4: kmZ4, z5: kmZ5, total: Math.round(total * 10) / 10 };
+        }
+
+        function initApp() {
+            const dateInput = document.getElementById('marathonDate');
+            dateInput.addEventListener('change', renderSchedule);
+            updateZonesFromThreshold();
+            renderSchedule();
+        }
+
+        function resetDefaultDate() {
+            document.getElementById('marathonDate').value = '2027-03-14';
+            renderSchedule();
+        }
+
+        function filterCategory(cat) {
+            currentFilter = cat;
+            document.querySelectorAll('.cat-tab').forEach(tab => {
+                if (tab.dataset.category === cat) {
+                    tab.className = 'cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20';
+                } else {
+                    tab.className = 'cat-tab px-4 py-2 rounded-xl text-xs font-semibold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700';
+                }
+            });
+            renderSchedule();
+        }
+
+        function renderSchedule() {
+            const dateInputVal = document.getElementById('marathonDate').value;
+            if (!dateInputVal) return;
+
+            const marathonDate = new Date(dateInputVal);
+            
+            document.getElementById('statTotalWorkouts').innerText = workoutsData.length;
+            document.getElementById('statEventDateStr').innerText = marathonDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+            const processedWorkouts = workoutsData.map(w => {
+                const d = new Date(w.date);
+                return {
+                    date: d,
+                    dateStr: d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+                    shortDate: d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                    text: w.text,
+                    category: w.category,
+                    hasTechInfo: w.hasTechInfo,
+                    hasStrengthInfo: w.hasStrengthInfo,
+                    volumes: estimateWorkoutVolume(w.text, w.category)
+                };
+            });
+
+            const weeksMap = {};
+            processedWorkouts.forEach(w => {
+                const dayOfWeek = w.date.getDay();
+                const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
+                const monday = new Date(w.date);
+                monday.setDate(w.date.getDate() + diffToMonday);
+                const weekKey = monday.toISOString().split('T')[0];
+
+                if (!weeksMap[weekKey]) {
+                    weeksMap[weekKey] = {
+                        mondayDate: monday,
+                        workouts: []
+                    };
+                }
+                weeksMap[weekKey].workouts.push(w);
+            });
+
+            const sortedWeeks = Object.keys(weeksMap).sort();
+            document.getElementById('statTotalWeeks').innerText = sortedWeeks.length;
+
+            // --- RENDERIZZA LE RIGHE DEI VOLUMI SETTIMANALI IN LINEA ---
+            const volumeContainer = document.getElementById('volumeRowsContainer');
+            volumeContainer.innerHTML = '';
+
+            let weekCounter = 1;
+            sortedWeeks.forEach(weekKey => {
+                const weekData = weeksMap[weekKey];
+                let z1 = 0, z2 = 0, z3 = 0, z4 = 0, z5 = 0;
+                weekData.workouts.forEach(w => {
+                    z1 += w.volumes.z1;
+                    z2 += w.volumes.z2;
+                    z3 += w.volumes.z3;
+                    z4 += w.volumes.z4;
+                    z5 += w.volumes.z5;
+                });
+                const total = Math.round((z1 + z2 + z3 + z4 + z5) * 10) / 10;
+                
+                const sundayDate = new Date(weekData.mondayDate);
+                sundayDate.setDate(weekData.mondayDate.getDate() + 6);
+
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'flex flex-col md:flex-row items-start md:items-center justify-between bg-slate-900/60 border border-slate-700/50 px-4 py-3 rounded-xl gap-3 hover:border-slate-600 transition-all';
+                
+                rowDiv.innerHTML = `
+                    <div class="flex items-center space-x-3 min-w-[200px]">
+                        <span class="bg-amber-500/20 text-amber-400 font-bold text-xs px-2.5 py-1 rounded-lg border border-amber-500/30">Settimana ${weekCounter}</span>
+                        <span class="text-xs text-slate-300 font-medium">${weekData.mondayDate.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })} - ${sundayDate.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-4 text-xs">
+                        <div class="text-white font-bold bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">Tot: <span class="text-amber-400">${total} km</span></div>
+                        <div class="flex items-center space-x-3 text-slate-300">
+                            <span class="bg-slate-500/20 text-slate-300 px-2 py-1 rounded border border-slate-500/30" title="Z1">Z1: <strong>${Math.round(z1*10)/10} km</strong></span>
+                            <span class="bg-blue-500/20 text-blue-300 px-2 py-1 rounded border border-blue-500/30" title="Z2">Z2: <strong>${Math.round(z2*10)/10} km</strong></span>
+                            <span class="bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded border border-emerald-500/30" title="Z3">Z3: <strong>${Math.round(z3*10)/10} km</strong></span>
+                            <span class="bg-amber-500/20 text-amber-300 px-2 py-1 rounded border border-amber-500/30" title="Z4">Z4: <strong>${Math.round(z4*10)/10} km</strong></span>
+                            <span class="bg-rose-500/20 text-rose-300 px-2 py-1 rounded border border-rose-500/30" title="Z5">Z5: <strong>${Math.round(z5*10)/10} km</strong></span>
+                        </div>
+                    </div>
+                `;
+                volumeContainer.appendChild(rowDiv);
+                weekCounter++;
+            });
+
+            // --- RENDERIZZA LE CARD DEL CALENDARIO ---
+            const container = document.getElementById('scheduleContainer');
+            container.innerHTML = '';
+
+            let weekCount = 1;
+            sortedWeeks.forEach(weekKey => {
+                const weekData = weeksMap[weekKey];
+                const filteredWorkouts = weekData.workouts.filter(w => currentFilter === 'Tutti' || w.category === currentFilter);
+
+                if (filteredWorkouts.length === 0 && currentFilter !== 'Tutti') return;
+
+                const weekCard = document.createElement('div');
+                weekCard.className = 'bg-slate-800/90 border border-slate-700 rounded-2xl p-5 shadow-sm';
+
+                const sundayDate = new Date(weekData.mondayDate);
+                sundayDate.setDate(weekData.mondayDate.getDate() + 6);
+
+                let html = `
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 mb-4 border-b border-slate-700/80 gap-2">
+                        <div class="flex items-center space-x-3">
+                            <span class="bg-amber-500/20 text-amber-400 font-bold text-xs px-3 py-1 rounded-lg border border-amber-500/30">Settimana ${weekCount}</span>
+                            <h3 class="text-sm font-semibold text-slate-200">
+                                Dal ${weekData.mondayDate.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })} al ${sundayDate.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </h3>
+                        </div>
+                        <span class="text-xs text-slate-400">${weekData.workouts.length} sessioni</span>
+                    </div>
+                    <div class="space-y-3">
+                `;
+
+                weekData.workouts.forEach(w => {
+                    if (currentFilter !== 'Tutti' && w.category !== currentFilter) return;
+
+                    const badgeClass = categoryColors[w.category] || 'bg-slate-700 text-slate-300';
+                    const isMarathon = w.category === 'Maratona';
+                    const detectedZones = getZoneBadges(w.text);
+
+                    let zonesHtml = '';
+                    detectedZones.forEach(z => {
+                        zonesHtml += `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${z.class}">${z.name}</span>`;
+                    });
+
+                    let infoButtonHtml = '';
+                    if (w.hasTechInfo) {
+                        infoButtonHtml = `
+                            <button onclick="openModal('techModal', 'techModalBox')" class="ml-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold px-2 py-1 rounded-lg transition-all flex items-center space-x-1 shrink-0">
+                                <span>🎯 Focus Tecnico & Drills</span>
+                            </button>
+                        `;
+                    } else if (w.hasStrengthInfo) {
+                        infoButtonHtml = `
+                            <button onclick="openModal('infoModal', 'modalContentBox')" class="ml-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold px-2 py-1 rounded-lg transition-all flex items-center space-x-1 shrink-0">
+                                <span>🏋️ Metodo Forza & Potenza</span>
+                            </button>
+                        `;
+                    }
+
+                    html += `
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl bg-slate-900/60 border border-slate-700/50 hover:border-slate-600 transition-all gap-2 ${isMarathon ? 'border-amber-500/50 bg-amber-500/5' : ''}">
+                            <div class="flex items-center space-x-3 w-full sm:w-auto">
+                                <div class="text-xs font-bold text-slate-400 w-24 shrink-0 uppercase tracking-wide">
+                                    ${w.date.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                </div>
+                                <div class="text-sm font-medium text-white flex flex-wrap items-center gap-2 ${isMarathon ? 'text-amber-400 font-bold text-base' : ''}">
+                                    <span>${w.text}</span>
+                                    ${zonesHtml ? `<div class="flex items-center gap-1 ml-1">${zonesHtml}</div>` : ''}
+                                    ${infoButtonHtml}
+                                </div>
+                            </div>
+                            <span class="text-xs px-2.5 py-1 rounded-lg border font-medium shrink-0 ${badgeClass}">
+                                ${w.category}
+                            </span>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+                weekCard.innerHTML = html;
+                container.appendChild(weekCard);
+                weekCount++;
+            });
+        }
+
+        function getFullScheduleText() {
+            const marathonDate = new Date(document.getElementById('marathonDate').value);
+            const thr = document.getElementById('thresholdInput').value;
+            const paceThr = document.getElementById('paceThresholdInput').value;
+
+            let textOutput = "PROGRAMMA DI ALLENAMENTO MARATONA\n";
+            textOutput += "Data Evento: " + marathonDate.toLocaleDateString('it-IT') + "\n";
+            textOutput += `FC Soglia: ${thr} bpm | Ritmo Soglia: ${paceThr} /km\n`;
+            textOutput += "========================================\n\n";
+
+            workoutsData.forEach(w => {
+                const d = new Date(w.date);
+                const dateStr = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                textOutput += `[${dateStr}] - (${w.category}): ${w.text}\n`;
+            });
+
+            return textOutput;
+        }
+
+        function copyScheduleText() {
+            const text = getFullScheduleText();
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast("Calendario copiato negli appunti!");
+            } catch (err) {
+                showToast("Errore durante la copia", "❌");
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function exportTxtFile() {
+            const text = getFullScheduleText();
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `piano_maratona_marzo2027.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("File .txt esportato con successo!");
+        }
+
+        function showToast(message, icon = "✅") {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').innerText = message;
+            document.getElementById('toastIcon').innerText = icon;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
